@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>리듬게임 + 유튜브 동기화</title>
+<title>로컬 음원 + 노트 하강 예제</title>
 <style>
   body {
     background: #111;
@@ -41,24 +41,17 @@
     border-radius: 8px;
     box-shadow: 0 0 10px #0af;
   }
-  .note.long {
-    background: linear-gradient(to bottom, #0af, #05c);
-  }
   #fileInput {
     margin: 10px auto;
-  }
-  /* 유튜브 플레이어 숨김 */
-  #player {
-    width: 640px;
-    height: 360px;
-    margin: 20px auto;
   }
 </style>
 </head>
 <body>
 
-<h1>CSV 리듬게임 노트 하강 + 유튜브 자동재생</h1>
+<h1>로컬 음원 + 노트 하강</h1>
 <input type="file" id="fileInput" accept=".csv" />
+<br/>
+<input type="file" id="audioInput" accept="audio/*" />
 <div id="gameArea">
   <div class="lane"></div>
   <div class="lane"></div>
@@ -66,17 +59,17 @@
   <div class="lane"></div>
 </div>
 
-<!-- 유튜브 플레이어 -->
-<div id="player"></div>
+<audio id="audio" controls></audio>
 
-<script src="https://www.youtube.com/iframe_api"></script>
 <script>
   const gameArea = document.getElementById('gameArea');
   const fileInput = document.getElementById('fileInput');
+  const audioInput = document.getElementById('audioInput');
+  const audio = document.getElementById('audio');
 
   const lanesCount = 4;
   const gameHeight = 600;
-  const totalFallTime = 2500; // 2.5초에 도달
+  const totalFallTime = 2500;
   const noteHeightDefault = 30;
 
   let notes = [];
@@ -84,52 +77,34 @@
   let startTime = null;
   let fallingStarted = false;
 
-  let player;
-  let playTimeoutId;
-    let playerReady = false;
-
-function onYouTubeIframeAPIReady() {
- player = new YT.Player('player', {
-  height: '360',
-  width: '640',
-  videoId: 'vCvjZB8PqMQ',
-  playerVars: {
-    autoplay: 0,
-    controls: 1,       // 컨트롤 표시
-    disablekb: 0,      // 키보드 입력 허용
-    modestbranding: 1,
-    rel: 0
-  },
-  events: {
-    onReady: () => {
-      playerReady = true;
-    }
-  }
-});
-}
-
-  // CSV 파싱 및 노트 생성
   fileInput.addEventListener('change', e => {
     const file = e.target.files[0];
-    if(!file) return;
+    if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => {
+    reader.onload = ev => {
       parseCSV(ev.target.result);
       resetNotes();
     };
     reader.readAsText(file);
   });
 
+  audioInput.addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    audio.src = url;
+  });
+
   function parseCSV(text) {
     notes = [];
     const lines = text.trim().split('\n');
-    for(const line of lines) {
+    for (const line of lines) {
       const [timeStr, laneStr, typeStr, holdStr] = line.split(',').map(s => s.trim());
       const time = parseInt(timeStr);
       const lane = parseInt(laneStr);
       const type = parseInt(typeStr);
       const hold = parseInt(holdStr) || 0;
-      if(lane < 0 || lane >= lanesCount) continue;
+      if (lane < 0 || lane >= lanesCount) continue;
       notes.push({time, lane, type, hold, domElement: null});
     }
   }
@@ -141,16 +116,11 @@ function onYouTubeIframeAPIReady() {
       laneDiv.classList.add('lane');
       gameArea.appendChild(laneDiv);
     }
-    for(const note of notes) {
+    for (const note of notes) {
       const noteEl = document.createElement('div');
       noteEl.classList.add('note');
-      if(note.type === 2) {
-        noteEl.classList.add('long');
-        noteEl.style.height = (note.hold / totalFallTime * gameHeight) + 'px';
-      } else {
-        noteEl.style.height = noteHeightDefault + 'px';
-      }
-      noteEl.style.bottom = gameHeight + 'px'; // 맨 위 대기
+      noteEl.style.height = noteHeightDefault + 'px';
+      noteEl.style.bottom = gameHeight + 'px';
       const laneWidth = gameArea.clientWidth / lanesCount;
       noteEl.style.left = laneWidth * note.lane + laneWidth*0.1 + 'px';
       noteEl.style.width = laneWidth*0.8 + 'px';
@@ -160,20 +130,19 @@ function onYouTubeIframeAPIReady() {
   }
 
   function animationLoop() {
-    if(!fallingStarted) return;
+    if (!fallingStarted) return;
 
     const now = performance.now();
     const elapsed = now - startTime;
-
     const noteSpeed = gameHeight / totalFallTime;
 
-    for(const note of notes) {
-      if(!note.domElement) continue;
+    for (const note of notes) {
+      if (!note.domElement) continue;
       const pos = gameHeight - elapsed * noteSpeed;
       note.domElement.style.bottom = (pos < 0 ? 0 : pos) + 'px';
     }
 
-    if(elapsed >= totalFallTime) {
+    if (elapsed >= totalFallTime) {
       fallingStarted = false;
       cancelAnimationFrame(animationId);
       animationId = null;
@@ -183,45 +152,21 @@ function onYouTubeIframeAPIReady() {
     animationId = requestAnimationFrame(animationLoop);
   }
 
-  // 유튜브 IFrame API 준비
-  function onYouTubeIframeAPIReady() {
-    player = new YT.Player('player', {
-      height: '0',
-      width: '0',
-      videoId: 'vCvjZB8PqMQ',
-      playerVars: {
-        autoplay: 0,
-        controls: 0,
-        disablekb: 1,
-        modestbranding: 1,
-        rel: 0
-      }
-    });
-  }
-
-  // 스페이스바 누르면 노트 하강 & 2.5초 후 유튜브 재생
   document.addEventListener('keydown', e => {
-  if (e.code === 'Space') {
-    if (!playerReady) {
-      console.log("플레이어 준비 중...");
-      return;
+    if(e.code === 'Space') {
+      if(fallingStarted) return;
+      if(notes.length === 0) return;
+      if(audio.paused) {
+        setTimeout(() => {
+          audio.play();
+        }, 2500);
+      }
+      fallingStarted = true;
+      startTime = performance.now();
+      animationLoop();
     }
-    if (fallingStarted) return;
-    if (notes.length === 0) return;
-
-    fallingStarted = true;
-    startTime = performance.now();
-    animationLoop();
-
-    if (playTimeoutId) clearTimeout(playTimeoutId);
-    playTimeoutId = setTimeout(() => {
-      player.seekTo(0); // 영상 처음으로 돌리기
-      player.playVideo();
-    }, totalFallTime);
-  }
-});
+  });
 </script>
 
 </body>
 </html>
-
